@@ -15,6 +15,7 @@ struct FileEntry {
     sha256: String,
 }
 
+
 fn main() {
     let mut file_infos: HashMap<String, FileEntry> = HashMap::new();
     let mut files_to_remove: Vec<FileEntry> = Vec::new();
