@@ -1,2 +1,0 @@
-cargo:rustc-env=TYPENUM_BUILD_CONSTS=D:\Projects\Rust\DuplicateFinder\dupFinder\target\release\build\typenum-316da2987bec2aac\out\consts.rs
-cargo:rustc-env=TYPENUM_BUILD_OP=D:\Projects\Rust\DuplicateFinder\dupFinder\target\release\build\typenum-316da2987bec2aac\out\op.rs
