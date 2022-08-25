@@ -15,7 +15,6 @@ struct FileEntry {
     sha256: String,
 }
 
-
 fn main() {
     let mut file_infos: HashMap<String, FileEntry> = HashMap::new();
     let mut files_to_remove: Vec<FileEntry> = Vec::new();
@@ -25,10 +24,9 @@ fn main() {
     let mut input_path_string = String::new();
     stdin()
         .read_line(&mut input_path_string)
-        .ok()
+        //.ok()
         .expect("Failed to read line");
 
-    //input_path_string = "Y:\\something\\dontKnow\\11Backup von LF G\n".to_string();
     if input_path_string.ends_with('\n') {
         input_path_string.pop();
         if input_path_string.ends_with('\r') {
@@ -56,7 +54,6 @@ fn main() {
 
     stdin()
         .read_line(&mut show_files_string)
-        .ok()
         .expect("Failed to read line");
 
     if show_files_string.ends_with('\n') {
@@ -74,7 +71,6 @@ fn main() {
     let mut final_job_string = String::new();
     stdin()
         .read_line(&mut final_job_string)
-        .ok()
         .expect("Failed to read line");
     if final_job_string.ends_with('\n') {
         final_job_string.pop();
@@ -97,7 +93,6 @@ fn move_files(f: Vec<FileEntry>) {
     println!("Please enter the destination directory:");
     stdin()
         .read_line(&mut dest_input_string)
-        .ok()
         .expect("Failed to read line");
     if dest_input_string.ends_with('\n') {
         dest_input_string.pop();
@@ -105,7 +100,7 @@ fn move_files(f: Vec<FileEntry>) {
             dest_input_string.pop();
         }
     }
-    
+
     dest_input_string = dest_input_string.replace(r"\", r"/");
     let dest = Path::new(&dest_input_string);
     fs::create_dir_all(dest).expect(" 1234");
@@ -151,71 +146,67 @@ fn parse_data(
     {
         let tx = tx.clone();
 
-        let progress_counter_copy = Arc::clone(&progress_counter);
-        let read_size_sum_copy = Arc::clone(&read_size_sum);
-        let pool_copy = pool.clone();
+        //let progress_counter_copy = Arc::clone(&progress_counter);
+        //let read_size_sum_copy = Arc::clone(&read_size_sum);
+        //let pool_copy = pool.clone();
+
         pool.execute(move || {
-            if let Ok(metadata) = file.metadata() {
-                // Now let's show our entry's permissions!
-                *read_size_sum_copy.lock().unwrap() += metadata.len();
-            } else {
-                println!("Couldn't get metadata for {:?}", file.path());
-            }
-            *progress_counter_copy.lock().unwrap() += 1;
-            if *progress_counter_copy.lock().unwrap() % 1 == 0 {
-                print!(
-                    "\rProgress: {} files read. Read: {} Mbytes. Current threads: {}, current queue: {}",
-                    *progress_counter_copy.lock().unwrap(),
-                    *read_size_sum_copy.lock().unwrap() / 1000000,
-                    pool_copy.active_count(),
-                    pool_copy.queued_count()
-                );
-            }
-            let h = sha256_digest(&file.path());
-            tx.send((h, file)).expect("oops! something went horribly wrong!");
+            let h = sha256_digest(file.path());
+            tx.send((h, file))
+                .expect("oops! something went horribly wrong!");
         });
     }
-    /*
-    println!(
-        "Threads started, working on: {} threads with a queue of {}",
-        pool.active_count(),
-        pool.queued_count()
-    );
-    */
-    pool.join();
-    println!("");
-    println!("All threads done");
     drop(tx);
+    //First thread starts the loop
     let mut simple_counter: i64 = 0;
-    for (h, file) in rx.iter() {
-        simple_counter += 1;
-        print!(
-            "\rProgress {:.3}%",
-            (simple_counter as f64 / *progress_counter.lock().unwrap() as f64) * 100 as f64
-        );
+    while let Ok((h, file)) = rx.recv() {
+        if let Ok(metadata) = file.metadata() {
+            let mut guard = read_size_sum.lock().unwrap();
+            *guard += metadata.len();
+
+            simple_counter += 1;
+            let mut guard1 = progress_counter.lock().unwrap(); // This locks and slows the progress
+            *guard1 += 1;
+
+            print!(
+                "\rProgress: read {} files est: {:.2}% done. Read: {} Mbytes. Current threads: {}, current queue: {}.",
+                *guard1,
+                (simple_counter as f64 / (*guard1 + pool.queued_count() as i32 + pool.queued_count() as i32 + pool.active_count() as i32) as f64) * 100.0,
+                *guard / 1000000,
+                pool.active_count(),
+                pool.queued_count(),
+            );
+
+            drop(guard);
+            drop(guard1);
+        } else {
+            println!("Couldn't get metadata for {:?}", file.path());
+        }
+
         if file_infos.contains_key(&h) {
-            let foo = FileEntry {
+            let fe = FileEntry {
                 path: file.path().to_path_buf(),
                 sha256: h,
             };
-            //println!("{} {}", "Found one", foo.path.display());
-            files_to_remove.push(foo);
+            files_to_remove.push(fe);
         } else {
             let k = h.to_owned();
-            let foo = FileEntry {
+            let fe = FileEntry {
                 path: file.path().to_path_buf(),
                 sha256: h,
             };
-            //println!("{} {} {}", "111111111111Found one", foo.path.display(), k);
-            file_infos.insert(k, foo);
+            file_infos.insert(k, fe);
         }
     }
-    println!("");
+
+    pool.join();
+    println!();
+    println!("All threads done");
+    println!();
 }
 
 fn sha256_digest(input: &Path) -> String {
     //let input = Path::new(&file_string);
     let val = digest_file(input).unwrap();
-
     return val;
 }
